@@ -1,0 +1,42 @@
+@page
+@using CompanyApp.Web.Data
+@using CompanyApp.Web.Models
+@inject AppDbContext Db
+@functions{
+    public List<Product> Products { get; set; } = new();
+    public async Task OnGet(){ Products = await Db.Products.OrderBy(p=>p.Name).ToListAsync(); }
+    public async Task OnPost(){
+        var order = new Order();
+        Db.Orders.Add(order);
+        await Db.SaveChangesAsync();
+        foreach(var key in Request.Form.Keys.Where(k=>k.StartsWith("qty_")))
+        {
+            var id = int.Parse(key[4..]);
+            var qty = int.Parse(Request.Form[key]);
+            if (qty>0){
+                var prod = await Db.Products.FindAsync(id);
+                if (prod!=null){
+                    Db.OrderItems.Add(new OrderItem{ OrderId = order.Id, ProductId = prod.Id, Quantity = qty, UnitPrice = prod.Price });
+                }
+            }
+        }
+        await Db.SaveChangesAsync();
+        Response.Redirect($"/Orders/Edit?id={order.Id}");
+    }
+}
+<h3>Новый заказ</h3>
+<form method="post" class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead><tr><th>Товар</th><th>Цена</th><th>Кол-во</th></tr></thead>
+    <tbody>
+      @foreach (var p in Products){
+        <tr>
+          <td>@p.Name</td>
+          <td>@p.Price</td>
+          <td style="max-width:120px"><input class="form-control" name="qty_@p.Id" value="0" /></td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <button class="btn btn-success">Создать</button>
+</form>

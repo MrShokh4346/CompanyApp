@@ -1,0 +1,23 @@
+@page
+@using CompanyApp.Web.Data
+@using CompanyApp.Web.Models
+@inject AppDbContext Db
+@functions{
+    public List<Order> Items { get; set; } = new();
+    public async Task OnGet(){ Items = await Db.Orders.Include(o=>o.Items).ThenInclude(i=>i.Product).OrderByDescending(o=>o.Id).ToListAsync(); }
+}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Заказы</h3>
+  <a class="btn btn-success" href="/Orders/Create">Новый заказ</a>
+</div>
+<div class="list-group">
+  @foreach (var o in Items) {
+    <a class="list-group-item list-group-item-action" href="/Orders/Edit?id=@o.Id">
+      <div class="d-flex w-100 justify-content-between">
+        <h6 class="mb-1">Заказ #@o.Id</h6>
+        <small>@o.CreatedAt.ToLocalTime()</small>
+      </div>
+      <small>@o.Items.Count позиций — @o.Items.Sum(i=>i.Quantity*i.UnitPrice) сумм.</small>
+    </a>
+  }
+</div>

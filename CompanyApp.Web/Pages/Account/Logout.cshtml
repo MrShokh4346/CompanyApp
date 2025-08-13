@@ -1,0 +1,6 @@
+@page
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<IdentityUser> SignInManager
+@functions{
+    public async Task OnGet(){ await SignInManager.SignOutAsync(); Response.Redirect("/"); }
+}

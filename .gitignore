@@ -1,0 +1,15 @@
+.vs
+/.vs
+.vs/
+bin/
+/binobj
+/obj
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# .NET build artifacts
+bin/
+obj/

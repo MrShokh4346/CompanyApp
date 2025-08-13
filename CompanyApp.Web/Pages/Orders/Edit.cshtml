@@ -1,0 +1,20 @@
+@page
+@using CompanyApp.Web.Data
+@using CompanyApp.Web.Models
+@inject AppDbContext Db
+@functions{
+    public Order? Item { get; set; }
+    public async Task OnGet(int id){ Item = await Db.Orders.Include(o=>o.Items).ThenInclude(i=>i.Product).FirstOrDefaultAsync(o=>o.Id==id); }
+}
+@if (Item==null){ <div class="alert alert-warning">Не найдено</div> } else {
+<h3>Заказ #@Item.Id</h3>
+<ul class="list-group mb-3">
+  @foreach (var it in Item.Items){
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      <div>@it.Product.Name x @it.Quantity</div>
+      <div>@(it.Quantity * it.UnitPrice)</div>
+    </li>
+  }
+</ul>
+<div class="text-end fw-bold">Итого: @Item.Items.Sum(i=>i.Quantity*i.UnitPrice)</div>
+}
