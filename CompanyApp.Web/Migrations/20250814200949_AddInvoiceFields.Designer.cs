@@ -3,6 +3,7 @@ using System;
 using CompanyApp.Web.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CompanyApp.Web.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250814200949_AddInvoiceFields")]
+    partial class AddInvoiceFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
@@ -37,40 +40,6 @@ namespace CompanyApp.Web.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Customers");
-                });
-
-            modelBuilder.Entity("CompanyApp.Web.Models.Expense", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(300)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("DueDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("PaidAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("PaidAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Vendor")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Expenses");
                 });
 
             modelBuilder.Entity("CompanyApp.Web.Models.Order", b =>
@@ -124,37 +93,6 @@ namespace CompanyApp.Web.Migrations
                     b.HasIndex("ProductId");
 
                     b.ToTable("OrderItems");
-                });
-
-            modelBuilder.Entity("CompanyApp.Web.Models.Payment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Method")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("OrderId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("PaidAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderId");
-
-                    b.ToTable("Payments");
                 });
 
             modelBuilder.Entity("CompanyApp.Web.Models.Product", b =>
@@ -404,17 +342,6 @@ namespace CompanyApp.Web.Migrations
                     b.Navigation("Product");
                 });
 
-            modelBuilder.Entity("CompanyApp.Web.Models.Payment", b =>
-                {
-                    b.HasOne("CompanyApp.Web.Models.Order", "Order")
-                        .WithMany("Payments")
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Order");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -469,8 +396,6 @@ namespace CompanyApp.Web.Migrations
             modelBuilder.Entity("CompanyApp.Web.Models.Order", b =>
                 {
                     b.Navigation("Items");
-
-                    b.Navigation("Payments");
                 });
 #pragma warning restore 612, 618
         }

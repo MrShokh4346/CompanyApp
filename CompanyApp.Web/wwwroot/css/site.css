@@ -1,85 +1,41 @@
-/* Тёмно-синий верх */
-.bg-navy {
-    background-color: #0b3a78;
+/* РўС‘РјРЅРѕ-СЃРёРЅРёР№ РІРµСЂС… */
+.bg-navy { background-color:#0b3a78; }
+:root { --sidebar-w:260px; --topbar-h:56px; }
+
+.sidebar{
+  position:fixed; left:0; top:var(--topbar-h); bottom:0;
+  width:var(--sidebar-w); background:#fff; border-right:1px solid #e5e7eb;
+  overflow-y:auto; transform:translateX(-100%); transition:transform .2s ease;
+  z-index:1031;
 }
-
-/* Размеры */
-:root {
-    --sidebar-w: 260px;
-    --topbar-h: 56px;
+.content{
+  padding-top:var(--topbar-h);
+  margin-left:0;
+  width:100%;
+  transition:margin-left .2s ease, width .2s ease;
 }
-
-/* Базовое состояние */
-.sidebar {
-    position: fixed;
-    left: 0;
-    top: var(--topbar-h);
-    bottom: 0;
-    width: var(--sidebar-w);
-    background: #fff;
-    border-right: 1px solid #e5e7eb;
-    overflow-y: auto;
-    transform: translateX(-100%);
-    transition: transform .2s ease;
-    z-index: 1031;
+body.sidebar-open .sidebar{ transform:translateX(0); }
+body.sidebar-open .content{ margin-left:var(--sidebar-w); }
+.backdrop{
+  position:fixed; left:0; right:0; top:var(--topbar-h); bottom:0;
+  background:rgba(0,0,0,.35); display:none; z-index:1030;
 }
-
-.content {
-    padding-top: var(--topbar-h);
-    margin-left: 0;
-    width: 100%; /* <— важно */
-    transition: margin-left .2s ease, width .2s ease;
+body.sidebar-open .backdrop{ display:block; }
+@media (min-width:768px){
+  .backdrop{ display:none !important; }
 }
+.nav-link.active{ background:#f1f5f9; }
+html, body { overflow-x:hidden; }
 
-/* Открытое состояние — ПОДВИГАЕМ КОНТЕНТ */
-body.sidebar-open .sidebar {
-    transform: translateX(0);
-}
+/* РџРµС‡Р°С‚СЊ С‚РѕР»СЊРєРѕ РЅР°РєР»Р°РґРЅРѕР№ */
+@media print{
+  @page { size: A4; margin: 12mm; }
+  .navbar, .sidebar, .backdrop { display:none !important; }
+  body.sidebar-open .content { margin-left:0 !important; }
+  .content { padding-top:0 !important; }
 
-
-body.sidebar-open .content {
-    margin-left: var(--sidebar-w);
-}
-
-/* Мобильный overlay (контент не сдвигаем) */
-.backdrop {
-    position: fixed;
-    left: 0;
-    right: 0;
-    top: var(--topbar-h);
-    bottom: 0;
-    background: rgba(0,0,0,.35);
-    display: none;
-    z-index: 1030;
-}
-
-body.sidebar-open .backdrop {
-    display: block;
-}
-
-
-/* Десктоп: и сдвигаем, и уменьшаем ширину контента */
-@media (min-width:768px) {
-    body.sidebar-open .content {
-        margin-left: var(--sidebar-w);
-        width: calc(100% - var(--sidebar-w)); /* <— чтобы ничего не «резалось» справа */
-    }
-
-    .backdrop {
-        display: none !important;
-    }
-}
-
-/* Активный пункт */
-.nav-link.active {
-    background: #f1f5f9;
-}
-
-/* Мелочи */
-html, body {
-    overflow-x: hidden;
-}
-/* на всякий случай от горизонтального скролла */
-.nav-link.active {
-    background: #f1f5f9;
+  /* РџРѕРєР°Р·С‹РІР°РµРј РЅР° РїРµС‡Р°С‚Рё РўРћР›Р¬РљРћ Р·РѕРЅСѓ .print-area */
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; }
 }

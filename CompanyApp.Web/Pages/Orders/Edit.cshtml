@@ -1,20 +1,209 @@
 @page
+@using Microsoft.EntityFrameworkCore
 @using CompanyApp.Web.Data
 @using CompanyApp.Web.Models
 @inject AppDbContext Db
 @functions{
     public Order? Item { get; set; }
-    public async Task OnGet(int id){ Item = await Db.Orders.Include(o=>o.Items).ThenInclude(i=>i.Product).FirstOrDefaultAsync(o=>o.Id==id); }
+    public List<Customer> Customers { get; set; } = new();
+    public decimal Total => Item?.Items.Sum(i=>i.Quantity*i.UnitPrice) ?? 0m;
+    public decimal Paid => Item?.Payments.Sum(p=>p.Amount) ?? 0m;
+    public decimal Due => Math.Max(0, Total - Paid);
+
+    private async Task Load(int id){
+        Item = await Db.Orders
+            .Include(o=>o.Items).ThenInclude(i=>i.Product)
+            .Include(o=>o.Payments)
+            .Include(o=>o.Customer)
+            .FirstOrDefaultAsync(o=>o.Id==id);
+        Customers = await Db.Customers.OrderBy(c=>c.FullName).ToListAsync();
+    }
+
+    public async Task OnGet(int id){
+        await Load(id);
+    }
+
+    public async Task OnPostAddPayment(int id){
+        var amount = decimal.Parse(Request.Form["Amount"]);
+        var method = Request.Form["Method"].ToString();
+        var note = Request.Form["Note"].ToString();
+        Db.Payments.Add(new Payment{ OrderId = id, Amount = amount, Method = method, Note = note, PaidAt = DateTime.UtcNow });
+        await Db.SaveChangesAsync();
+        Response.Redirect($"/Orders/Edit?id={id}");
+    }
+
+    public async Task OnPostDeletePayment(int id, int paymentId){
+        var p = await Db.Payments.FindAsync(paymentId);
+        if (p!=null) { Db.Payments.Remove(p); await Db.SaveChangesAsync(); }
+        Response.Redirect($"/Orders/Edit?id={id}");
+    }
+
+    public async Task OnPostSetCustomer(int id){
+        var cidStr = Request.Form["CustomerId"].ToString();
+        if (int.TryParse(cidStr, out var cid)){
+            var o = await Db.Orders.FindAsync(id);
+            if (o!=null){ o.CustomerId = cid; await Db.SaveChangesAsync(); }
+        }
+        Response.Redirect($"/Orders/Edit?id={id}");
+    }
+
+    public async Task OnPostAddCustomer(int id){
+        var c = new Customer{
+            FullName = Request.Form["FullName"],
+            Email = Request.Form["Email"],
+            Phone = Request.Form["Phone"]
+        };
+        Db.Customers.Add(c);
+        await Db.SaveChangesAsync();
+        var o = await Db.Orders.FindAsync(id);
+        if (o!=null){ o.CustomerId = c.Id; await Db.SaveChangesAsync(); }
+        Response.Redirect($"/Orders/Edit?id={id}");
+    }
 }
 @if (Item==null){ <div class="alert alert-warning">Не найдено</div> } else {
-<h3>Заказ #@Item.Id</h3>
-<ul class="list-group mb-3">
-  @foreach (var it in Item.Items){
-    <li class="list-group-item d-flex justify-content-between align-items-center">
-      <div>@it.Product.Name x @it.Quantity</div>
-      <div>@(it.Quantity * it.UnitPrice)</div>
-    </li>
-  }
-</ul>
-<div class="text-end fw-bold">Итого: @Item.Items.Sum(i=>i.Quantity*i.UnitPrice)</div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Заказ #@Item.Id</h3>
+  <div class="btn-group">
+    <a class="btn btn-outline-secondary" href="/Orders/Invoice?id=@Item.Id&generate=true">Накладная</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+    <ul class="list-group mb-3">
+      @foreach (var it in Item.Items){
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <div>@it.Product.Name x @it.Quantity</div>
+          <div>@(it.Quantity * it.UnitPrice)</div>
+        </li>
+      }
+    </ul>
+
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-md-4"><div class="card shadow-sm"><div class="card-body">
+        <div class="text-muted small">Сумма заказа</div>
+        <div class="fs-5 fw-bold">@Total</div>
+      </div></div></div>
+      <div class="col-6 col-md-4"><div class="card shadow-sm"><div class="card-body">
+        <div class="text-muted small">Оплачено</div>
+        <div class="fs-5 fw-bold">@Paid</div>
+      </div></div></div>
+      <div class="col-6 col-md-4"><div class="card shadow-sm"><div class="card-body">
+        <div class="text-muted small">Долг</div>
+        <div class="fs-5 fw-bold text-danger">@Due</div>
+      </div></div></div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Оплаты</h5>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Дата</th><th>Сумма</th><th>Метод</th><th>Комментарий</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var p in Item.Payments.OrderByDescending(x=>x.PaidAt))
+            {
+              <tr>
+                <td>@p.PaidAt.ToLocalTime()</td>
+                <td>@p.Amount</td>
+                <td>@p.Method</td>
+                <td>@p.Note</td>
+                <td class="text-end">
+                  <form method="post" asp-page-handler="DeletePayment" class="d-inline">
+                    <input type="hidden" name="id" value="@Item.Id" />
+                    <input type="hidden" name="paymentId" value="@p.Id" />
+                    <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                  </form>
+                </td>
+              </tr>
+            }
+            </tbody>
+          </table>
+        </div>
+
+        <form method="post" asp-page-handler="AddPayment" class="row g-2">
+          <input type="hidden" name="id" value="@Item.Id" />
+          <div class="col-12 col-md-3">
+            <input class="form-control" name="Amount" placeholder="Сумма" required />
+          </div>
+          <div class="col-6 col-md-3">
+            <select class="form-select" name="Method" required>
+              <option value="" selected>— способ оплаты —</option>
+              <option>Наличные</option>
+              <option>Карта</option>
+              <option>Банковский перевод</option>
+              <option>Терминал</option>
+              <option>QR</option>
+              <option>Другое</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-4">
+            <input class="form-control" name="Note" placeholder="Комментарий" />
+          </div>
+          <div class="col-12 col-md-2">
+            <button class="btn btn-success w-100">Добавить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Покупатель</h5>
+
+        <form method="post" asp-page-handler="SetCustomer" class="mb-3">
+          <input type="hidden" name="id" value="@Item.Id" />
+          <div class="mb-2">
+            <select class="form-select" name="CustomerId">
+              <option value="">— выбрать из списка —</option>
+              @foreach (var c in Customers)
+              {
+                  if (Item.CustomerId == c.Id)
+                  {
+                      <option value="@c.Id" selected>
+                        @c.FullName (@(string.IsNullOrEmpty(c.Phone) ? c.Email : c.Phone))
+                      </option>
+                  }
+                  else
+                  {
+                      <option value="@c.Id">
+                        @c.FullName (@(string.IsNullOrEmpty(c.Phone) ? c.Email : c.Phone))
+                      </option>
+                  }
+              }
+            </select>
+
+          </div>
+          <button class="btn btn-primary">Сохранить покупателя</button>
+        </form>
+
+        <div class="border-top pt-3">
+          <div class="fw-semibold mb-2">Быстро добавить нового</div>
+          <form method="post" asp-page-handler="AddCustomer" class="row g-2">
+            <input type="hidden" name="id" value="@Item.Id" />
+            <div class="col-12"><input class="form-control" name="FullName" placeholder="ФИО/Название" required /></div>
+            <div class="col-6"><input class="form-control" name="Email" placeholder="Email" /></div>
+            <div class="col-6"><input class="form-control" name="Phone" placeholder="Телефон" /></div>
+            <div class="col-12"><button class="btn btn-outline-success w-100">Добавить и привязать</button></div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    @if (Item.Customer != null){
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted small">Текущий покупатель</div>
+          <div class="fw-semibold">@Item.Customer.FullName</div>
+          <div class="small">
+            Email: @(Item.Customer.Email ?? "—")<br/>
+            Тел: @(Item.Customer.Phone ?? "—")
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+</div>
 }

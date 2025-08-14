@@ -1,6 +1,8 @@
 using System.Text;
+using System.IO;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using CompanyApp.Web.Data;
@@ -11,24 +13,32 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
 
-// Identity (cookies по умолчанию для UI)
+// Identity (cookie РґР»СЏ UI)
 builder.Services.AddIdentity<IdentityUser, IdentityRole>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
-// Razor Pages: защищаем всё, кроме Login и главной
-builder.Services.AddRazorPages(options =>
+// РљСѓРєРё: СЏРІРЅРѕ Р·Р°РґР°РґРёРј РїСѓС‚СЊ Р»РѕРіРёРЅР°
+builder.Services.ConfigureApplicationCookie(o =>
 {
-    options.Conventions.AuthorizeFolder("/");
-    options.Conventions.AllowAnonymousToPage("/Account/Login");
-    //options.Conventions.AllowAnonymousToPage("/Index");
+    o.LoginPath = "/Account/Login";
+    o.SlidingExpiration = true;
 });
 
-// JWT для API (НЕ делаем его схемой по умолчанию)
+// Razor Pages: РІСЃС‘ Р·Р°РєСЂС‹С‚Рѕ, РєСЂРѕРјРµ СЃС‚СЂР°РЅРёС†С‹ Р»РѕРіРёРЅР°
+builder.Services.AddRazorPages(o =>
+{
+    o.Conventions.AuthorizeFolder("/");
+    o.Conventions.AllowAnonymousToPage("/Account/Login");
+    // Р•СЃР»Рё РЅСѓР¶РЅР° РѕС‚РєСЂС‹С‚Р°СЏ РіР»Р°РІРЅР°СЏ вЂ” СЂР°СЃРєРѕРјРјРµРЅС‚РёСЂСѓР№:
+    // o.Conventions.AllowAnonymousToPage("/Index");
+});
+
+// JWT РґР»СЏ API (РќР• СЃС…РµРјР° РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ)
 var jwt = builder.Configuration.GetSection("Jwt");
 var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Key"]!));
 
-builder.Services.AddAuthentication() // оставляем cookie от Identity как default
+builder.Services.AddAuthentication() // РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ РѕСЃС‚Р°С‘С‚СЃСЏ cookie РѕС‚ Identity
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -45,11 +55,17 @@ builder.Services.AddAuthentication() // оставляем cookie от Identity как default
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 
-// Swagger
+// Swagger (С‚РѕР»СЊРєРѕ РІ Dev)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// Р”РѕРІРµСЂСЏРµРј Р·Р°РіРѕР»РѕРІРєР°Рј РїСЂРѕРєСЃРё (Cloudflare/ngrok) вЂ” Р”Рћ auth/redirects!
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -64,7 +80,7 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// PWA service worker
+// PWA service worker (РёР· wwwroot/pwa/service-worker.js)
 app.MapWhen(ctx => ctx.Request.Path == "/pwa/service-worker.js", sw =>
 {
     sw.Run(async http =>
@@ -82,6 +98,7 @@ using (var scope = app.Services.CreateScope())
 {
     var userMgr = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
     var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
     const string adminEmail = "admin@local";
     const string adminPass = "Admin123$";
 

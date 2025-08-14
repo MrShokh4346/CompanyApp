@@ -1,0 +1,88 @@
+@page
+@using Microsoft.EntityFrameworkCore
+@using CompanyApp.Web.Data
+@using CompanyApp.Web.Models
+@inject AppDbContext Db
+@functions{
+    public List<Expense> Items { get; set; } = new();
+    public decimal TotalOutstanding => Items.Sum(x=>x.Outstanding);
+    public async Task OnGet(){ Items = await Db.Expenses.OrderBy(e=>e.IsPaid).ThenBy(e=>e.DueDate).ToListAsync(); }
+
+    public async Task OnPostAdd(){
+        var e = new Expense{
+            Vendor = Request.Form["Vendor"],
+            Description = Request.Form["Description"],
+            Amount = decimal.Parse(Request.Form["Amount"]),
+            DueDate = DateTime.TryParse(Request.Form["DueDate"], out var d) ? d : null
+        };
+        Db.Expenses.Add(e); await Db.SaveChangesAsync();
+        Response.Redirect("/Finance/Expenses");
+    }
+    public async Task OnPostPay(int id){
+        var e = await Db.Expenses.FindAsync(id);
+        if (e!=null){
+            var pay = decimal.Parse(Request.Form["PayAmount"]);
+            e.PaidAmount += pay;
+            if (e.IsPaid) e.PaidAt = DateTime.UtcNow;
+            await Db.SaveChangesAsync();
+        }
+        Response.Redirect("/Finance/Expenses");
+    }
+    public async Task OnPostDelete(int id){
+        var e = await Db.Expenses.FindAsync(id);
+        if (e!=null){ Db.Expenses.Remove(e); await Db.SaveChangesAsync(); }
+        Response.Redirect("/Finance/Expenses");
+    }
+}
+<h3 class="mb-3">Кредиторы (расходы)</h3>
+<div class="mb-3">
+  <form method="post" asp-page-handler="Add" class="row g-2">
+    <div class="col-12 col-md-3"><input class="form-control" name="Vendor" placeholder="Поставщик" required /></div>
+    <div class="col-12 col-md-3"><input class="form-control" name="Description" placeholder="Описание" /></div>
+    <div class="col-6 col-md-2"><input class="form-control" name="Amount" placeholder="Сумма" required /></div>
+    <div class="col-6 col-md-2"><input class="form-control" name="DueDate" placeholder="Срок (YYYY-MM-DD)" /></div>
+    <div class="col-12 col-md-2"><button class="btn btn-success w-100">Добавить</button></div>
+  </form>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="fw-semibold">Остаток к оплате: @TotalOutstanding</div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr><th>Поставщик</th><th>Описание</th><th>Срок</th><th class="text-end">Сумма</th><th class="text-end">Оплачено</th><th class="text-end">Остаток</th><th></th></tr>
+        </thead>
+        <tbody>
+          @foreach (var e in Items){
+            <tr class="@(e.IsPaid ? "table-success" : (e.DueDate!=null && e.DueDate < DateTime.UtcNow ? "table-warning" : ""))">
+              <td>@e.Vendor</td>
+              <td>@e.Description</td>
+              <td>@(e.DueDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+              <td class="text-end">@e.Amount</td>
+              <td class="text-end">@e.PaidAmount</td>
+              <td class="text-end fw-bold">@e.Outstanding</td>
+              <td class="text-end">
+                <div class="d-flex gap-2 justify-content-end">
+                  @if(!e.IsPaid){
+                    <form method="post" asp-page-handler="Pay" class="d-flex gap-2">
+                      <input type="hidden" name="id" value="@e.Id" />
+                      <input class="form-control form-control-sm" style="width:120px" name="PayAmount" placeholder="Оплата" />
+                      <button class="btn btn-sm btn-outline-primary">Оплатить</button>
+                    </form>
+                  }
+                  <form method="post" asp-page-handler="Delete">
+                    <input type="hidden" name="id" value="@e.Id" />
+                    <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

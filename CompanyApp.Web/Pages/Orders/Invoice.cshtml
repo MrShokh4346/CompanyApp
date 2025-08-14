@@ -1,0 +1,92 @@
+@page
+@model CompanyApp.Web.Pages.Orders.InvoiceModel
+@{
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    var o = Model.Order!;
+}
+<div class="d-print-none mb-3">
+  <a class="btn btn-secondary" href="/Orders/Edit?id=@o.Id">← Назад к заказу</a>
+  <a class="btn btn-primary"
+     href="/Orders/InvoicePrint?id=@o.Id&generate=true"
+     target="_blank" rel="noopener">Скачать PDF</a>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <h4 class="mb-1">Накладная</h4>
+        <div class="text-muted">
+          № @(o.InvoiceNumber ?? "—")<br/>
+          Дата: @(o.InvoiceDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "-")
+        </div>
+      </div>
+      <div class="text-end">
+        <div class="fw-semibold">CompanyApp</div>
+        <div class="text-muted small">Адрес компании<br/>Тел: +998 (00) 000-00-00</div>
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <div class="fw-semibold">Покупатель</div>
+        <div>@(o.Customer?.FullName ?? "—")</div>
+        <div class="text-muted small">
+          Email: @(o.Customer?.Email ?? "—")<br/>
+          Тел: @(o.Customer?.Phone ?? "—")
+        </div>
+      </div>
+      <div class="col-md-6 text-md-end">
+        <div class="fw-semibold">Детали заказа</div>
+        <div class="text-muted small">Заказ № @o.Id от @o.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Товар</th>
+            <th class="text-end">Цена</th>
+            <th class="text-end">Кол-во</th>
+            <th class="text-end">Сумма</th>
+          </tr>
+        </thead>
+        <tbody>
+        @{
+            var i = 1;
+            foreach (var it in o.Items)
+            {
+                <tr>
+                  <td>@i</td>
+                  <td>@it.Product.Name</td>
+                  <td class="text-end">@it.UnitPrice</td>
+                  <td class="text-end">@it.Quantity</td>
+                  <td class="text-end">@(it.Quantity * it.UnitPrice)</td>
+                </tr>;
+                i++;
+            }
+        }
+        </tbody>
+        <tfoot>
+          <tr class="fw-bold">
+            <td colspan="4" class="text-end">Итого</td>
+            <td class="text-end">@Model.Total</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="row mt-4">
+      <div class="col-6">
+        <div class="small text-muted">Подпись (выдал)</div>
+        <div style="height:48px;border-bottom:1px solid #ccc"></div>
+      </div>
+      <div class="col-6">
+        <div class="small text-muted">Подпись (получил)</div>
+        <div style="height:48px;border-bottom:1px solid #ccc"></div>
+      </div>
+    </div>
+  </div>
+</div>
