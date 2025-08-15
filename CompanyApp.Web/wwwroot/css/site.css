@@ -1,40 +1,85 @@
 /* Тёмно-синий верх */
 .bg-navy { background-color:#0b3a78; }
-:root { --sidebar-w:260px; --topbar-h:56px; }
 
-.sidebar{
-  position:fixed; left:0; top:var(--topbar-h); bottom:0;
-  width:var(--sidebar-w); background:#fff; border-right:1px solid #e5e7eb;
-  overflow-y:auto; transform:translateX(-100%); transition:transform .2s ease;
-  z-index:1031;
+/* Удобные переменные */
+:root {
+  --sidebar-w: 260px;
+  --topbar-h: 56px;
 }
-.content{
-  padding-top:var(--topbar-h);
-  margin-left:0;
-  width:100%;
-  transition:margin-left .2s ease, width .2s ease;
-}
-body.sidebar-open .sidebar{ transform:translateX(0); }
-body.sidebar-open .content{ margin-left:var(--sidebar-w); }
-.backdrop{
-  position:fixed; left:0; right:0; top:var(--topbar-h); bottom:0;
-  background:rgba(0,0,0,.35); display:none; z-index:1030;
-}
-body.sidebar-open .backdrop{ display:block; }
-@media (min-width:768px){
-  .backdrop{ display:none !important; }
-}
-.nav-link.active{ background:#f1f5f9; }
-html, body { overflow-x:hidden; }
 
-/* Печать только накладной */
+/* ====== SIDEBAR / CONTENT LAYOUT ====== */
+
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: var(--topbar-h);
+  bottom: 0;
+  width: var(--sidebar-w);
+  background: #fff;
+  border-right: 1px solid #e5e7eb;
+  overflow-y: auto;
+  transform: translateX(-100%); /* по умолчанию скрыт */
+  transition: transform .2s ease;
+  z-index: 1031;
+}
+
+.content {
+  padding-top: var(--topbar-h);
+  margin-left: 0;
+  width: 100%;
+  min-width: 0;            /* критично, чтобы flex/таблицы не выпирали */
+  box-sizing: border-box;  /* учитываем padding в ширину */
+  transition: margin-left .2s ease, width .2s ease;
+}
+
+/* Оверлей для мобилок */
+.backdrop {
+  position: fixed;
+  left: 0; right: 0;
+  top: var(--topbar-h); bottom: 0;
+  background: rgba(0,0,0,.35);
+  display: none;
+  z-index: 1030;
+}
+
+body.sidebar-open .sidebar { transform: translateX(0); }
+body.sidebar-open .backdrop { display: block; }
+
+/* На ≥768px: меню «толкает» контент, а не перекрывает */
+@media (min-width: 768px) {
+  .backdrop { display: none !important; } /* оверлей не нужен на десктопе */
+
+  body.sidebar-open .content {
+    margin-left: var(--sidebar-w);
+    width: calc(100% - var(--sidebar-w)); /* ключевой момент: контент реально сужается */
+  }
+}
+
+/* На <768px: меню поверх, контент остаётся на 100% ширины */
+@media (max-width: 767.98px) {
+  body.sidebar-open .content {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* Пометка активного пункта меню */
+.nav-link.active { background: #f1f5f9; }
+
+/* Таблицы и широкие блоки не «ломают» ширину: даём скролл */
+.table-responsive { overflow-x: auto; }
+.card, .table, .container, .container-fluid, .row, .col { min-width: 0; }
+
+/* УБЕДИСЬ, что у тебя НЕТ этого правила больше:
+   html, body { overflow-x: hidden; }
+   Оно обрезает правую часть. Если было — удалено! */
+
+/* ====== Печать только накладной (ОСТАВЛЯЕМ, если пользуешься .print-area в обычной Invoice) ====== */
 @media print{
-  @page { size: A4; margin: 12mm; }
+  /* если используешь режим print=1 без _Layout (InvoicePrint.cshtml), этот блок можно игнорировать */
   .navbar, .sidebar, .backdrop { display:none !important; }
   body.sidebar-open .content { margin-left:0 !important; }
   .content { padding-top:0 !important; }
-
-  /* Показываем на печати ТОЛЬКО зону .print-area */
   body * { visibility: hidden; }
   .print-area, .print-area * { visibility: visible; }
   .print-area { position: absolute; left: 0; top: 0; width: 100%; }
