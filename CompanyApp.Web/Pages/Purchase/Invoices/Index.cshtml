@@ -1,0 +1,82 @@
+@page
+@using Microsoft.EntityFrameworkCore
+@using CompanyApp.Web.Data
+@using CompanyApp.Web.Models
+@inject AppDbContext Db
+
+@functions{
+    public class Row {
+        public PurchaseInvoice Inv { get; set; } = default!;
+        public decimal Total { get; set; }
+        public decimal Paid { get; set; }
+        public decimal Due { get; set; } // кредиторка (нам нужно оплатить)
+        public bool Posted { get; set; }
+    }
+
+    public List<Row> Items { get; set; } = new();
+
+    public async Task OnGet(){
+        var list = await Db.PurchaseInvoices
+            .Include(x => x.Supplier)
+            .Include(x => x.Items)
+            .Include(x => x.Payments)
+            .OrderByDescending(x => x.Date)
+            .ToListAsync();
+
+        var postedIds = new HashSet<int>(await Db.Receipts
+            .Where(r => r.PurchaseInvoiceId != null)
+            .Select(r => r.PurchaseInvoiceId!.Value)
+            .ToListAsync());
+
+        Items = list.Select(inv => {
+            var total = inv.Items.Sum(i => i.UnitCost * i.Quantity);
+            var paid  = inv.Payments.Sum(p => p.Amount);
+            return new Row {
+                Inv = inv,
+                Total = total,
+                Paid = paid,
+                Due = Math.Max(0, total - paid),
+                Posted = postedIds.Contains(inv.Id) || inv.PostedToStockAt != null
+            };
+        }).ToList();
+    }
+}
+
+<h3 class="mb-3">Приходные накладные</h3>
+<div class="mb-2">
+  <a class="btn btn-primary" href="/Purchase/Invoices/Create">Новая приходная накладная</a>
+</div>
+
+<div class="table-responsive">
+<table class="table table-sm align-middle">
+  <thead>
+    <tr>
+      <th>№</th>
+      <th>Дата</th>
+      <th>Поставщик</th>
+      <th class="text-end">Сумма</th>
+      <th class="text-end">Оплачено</th>
+      <th class="text-end">Кредиторка</th>
+      <th>Статус</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  @foreach (var r in Items)
+  {
+    <tr>
+      <td>@r.Inv.Number</td>
+      <td>@r.Inv.Date.ToLocalTime().ToString("dd.MM.yyyy")</td>
+      <td>@r.Inv.Supplier.Name</td>
+      <td class="text-end">@r.Total</td>
+      <td class="text-end">@r.Paid</td>
+      <td class="text-end fw-semibold @(r.Due>0?"text-danger":"")">@r.Due</td>
+      <td>@(r.Posted ? "Проведена" : "Черновик")</td>
+      <td class="text-end">
+        <a class="btn btn-sm btn-outline-secondary" href="/Purchase/Invoices/Edit?id=@r.Inv.Id">Открыть</a>
+      </td>
+    </tr>
+  }
+  </tbody>
+</table>
+</div>

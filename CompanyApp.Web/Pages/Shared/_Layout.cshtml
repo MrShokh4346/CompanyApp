@@ -60,9 +60,11 @@
         <a class="nav-link @(Active("/Products"))" href="/Products">Товары</a>
         <a class="nav-link @(Active("/Orders"))" href="/Orders">Заказы</a>
         <a class="nav-link @(Active("/Finance"))" href="/Finance">Финансы</a>
-        <a class="nav-link" href="/swagger">API</a>
+        <li class="nav-item"><a class="nav-link" href="/Warehouse/Stock">Остатки</a></li>
+        <li class="nav-item"><a class="nav-link" href="/Purchase/Invoices">Приходные накладные</a></li>
+
         <hr class="my-3"/>
-        <div class="small text-muted mb-2">Вы вошли как @User.Identity!.Name</div>
+        <div class="small text-muted mb-2">Вы вошли как @(User?.Identity?.Name ?? "Гость")</div>
         <a class="btn btn-sm btn-outline-danger" href="/Account/Logout">Выйти</a>
       </nav>
     </aside>

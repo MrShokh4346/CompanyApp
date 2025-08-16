@@ -1,26 +1,77 @@
 @page
+@using Microsoft.EntityFrameworkCore
 @using CompanyApp.Web.Data
 @using CompanyApp.Web.Models
 @inject AppDbContext Db
+
 @functions{
-    public List<Product> Items { get; set; } = new();
-    public async Task OnGet(){ Items = await Db.Products.OrderBy(p=>p.Name).ToListAsync(); }
+    public class Row{
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public decimal Price { get; set; }
+        public int Sold { get; set; }
+        public int OnHand { get; set; }
+    }
+
+    public List<Row> Items { get; set; } = new();
+
+    public async Task OnGet(){
+        var products = await Db.Products.AsNoTracking().OrderBy(p => p.Name).ToListAsync();
+
+        // Агрегируем движения склада: In/Out по каждому товару
+        var moves = await Db.StockMoves.AsNoTracking()
+            .GroupBy(m => new { m.ProductId, m.Type })
+            .Select(g => new { g.Key.ProductId, g.Key.Type, Qty = g.Sum(x => x.Quantity) })
+            .ToListAsync();
+
+        var inBy = moves.Where(x => x.Type == StockMoveType.In)
+                        .ToDictionary(x => x.ProductId, x => x.Qty);
+        var outBy = moves.Where(x => x.Type == StockMoveType.Out)
+                         .ToDictionary(x => x.ProductId, x => x.Qty);
+
+        Items = products.Select(p => {
+            inBy.TryGetValue(p.Id, out var inQty);
+            outBy.TryGetValue(p.Id, out var outQty);
+            var sold = outQty;
+            var onHand = (inQty - outQty);
+            return new Row {
+                Id = p.Id, Name = p.Name, Description = p.Description, Price = p.Price,
+                Sold = sold, OnHand = onHand
+            };
+        }).ToList();
+    }
 }
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h3 class="mb-0">Товары</h3>
-  <a class="btn btn-success" href="/Products/Create">Добавить</a>
+
+<h3 class="mb-3">Товары</h3>
+<div class="mb-3">
+  <a class="btn btn-primary" href="/Products/Create">Добавить товар</a>
 </div>
+
 <div class="table-responsive">
-  <table class="table table-striped">
-    <thead><tr><th>Название</th><th>Цена</th><th>Остаток</th><th></th></tr></thead>
-    <tbody>
-    @foreach (var p in Items) {
+  <table class="table table-sm align-middle">
+    <thead>
       <tr>
-        <td>@p.Name</td>
-        <td>@p.Price</td>
-        <td>@p.Stock</td>
+        <th>Наименование</th>
+        <th class="text-end">Цена</th>
+        <th class="text-end">Продано</th>
+        <th class="text-end">Остаток</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    @foreach (var r in Items)
+    {
+      <tr>
         <td>
-          <a class="btn btn-sm btn-primary" href="/Products/Edit?id=@p.Id">Изм.</a>
+          <div class="fw-semibold">@r.Name</div>
+          <div class="text-muted small">@r.Description</div>
+        </td>
+        <td class="text-end">@r.Price</td>
+        <td class="text-end">@r.Sold</td>
+        <td class="text-end fw-semibold">@r.OnHand</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="/Products/Edit?id=@r.Id">Изменить</a>
         </td>
       </tr>
     }

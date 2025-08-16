@@ -4,11 +4,16 @@
     Layout = "~/Pages/Shared/_Layout.cshtml";
     var o = Model.Order!;
 }
-<div class="d-print-none mb-3">
+@if (TempData["Ok"] is string ok && !string.IsNullOrEmpty(ok))
+{
+  <div class="alert alert-success">@ok</div>
+}
+
+<div class="d-print-none mb-3 btn-toolbar gap-2">
   <a class="btn btn-secondary" href="/Orders/Edit?id=@o.Id">← Назад к заказу</a>
-  <a class="btn btn-primary"
-     href="/Orders/InvoicePrint?id=@o.Id&generate=true"
-     target="_blank" rel="noopener">Скачать PDF</a>
+  <a class="btn btn-primary" href="/Orders/Invoice?id=@o.Id&generate=true" target="_blank" rel="noopener">Открыть накладную</a>
+  <a class="btn btn-warning" href="/Orders/Invoice?id=@o.Id&generate=true&post=issue">Списать со склада</a>
+  <a class="btn btn-outline-primary" href="/orders/@o.Id/invoice.pdf">Скачать PDF</a>
 </div>
 
 <div class="card shadow-sm">
@@ -69,24 +74,24 @@
             }
         }
         </tbody>
-        <tfoot>
-          <tr class="fw-bold">
-            <td colspan="4" class="text-end">Итого</td>
-            <td class="text-end">@Model.Total</td>
-          </tr>
-        </tfoot>
       </table>
     </div>
 
-    <div class="row mt-4">
-      <div class="col-6">
-        <div class="small text-muted">Подпись (выдал)</div>
-        <div style="height:48px;border-bottom:1px solid #ccc"></div>
-      </div>
-      <div class="col-6">
-        <div class="small text-muted">Подпись (получил)</div>
-        <div style="height:48px;border-bottom:1px solid #ccc"></div>
-      </div>
+    <!-- Итоги по оплатам -->
+    <div class="row g-3 mt-3">
+      <div class="col-12 col-md-4"><div class="card border-0 bg-light"><div class="card-body py-2">
+        <div class="text-muted small">Итого</div>
+        <div class="fs-5 fw-semibold">@Model.Total</div>
+      </div></div></div>
+      <div class="col-6 col-md-4"><div class="card border-0 bg-light"><div class="card-body py-2">
+        <div class="text-muted small">Оплачено</div>
+        <div class="fs-5 fw-semibold">@Model.Paid</div>
+      </div></div></div>
+      <div class="col-6 col-md-4"><div class="card border-0 bg-light"><div class="card-body py-2">
+        <div class="text-muted small">К оплате</div>
+        <div class="fs-5 fw-semibold text-danger">@Model.Due</div>
+      </div></div></div>
     </div>
+
   </div>
 </div>

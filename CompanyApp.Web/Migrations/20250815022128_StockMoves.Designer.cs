@@ -3,6 +3,7 @@ using System;
 using CompanyApp.Web.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CompanyApp.Web.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250815022128_StockMoves")]
+    partial class StockMoves
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
@@ -184,88 +187,6 @@ namespace CompanyApp.Web.Migrations
                     b.ToTable("Products");
                 });
 
-            modelBuilder.Entity("CompanyApp.Web.Models.PurchaseInvoice", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Number")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("PostedToStockAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SupplierId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SupplierId");
-
-                    b.ToTable("PurchaseInvoices");
-                });
-
-            modelBuilder.Entity("CompanyApp.Web.Models.PurchaseItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("ProductId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("PurchaseInvoiceId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("UnitCost")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("PurchaseInvoiceId");
-
-                    b.ToTable("PurchaseItems");
-                });
-
-            modelBuilder.Entity("CompanyApp.Web.Models.PurchasePayment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Method")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("PaidAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("PurchaseInvoiceId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PurchaseInvoiceId");
-
-                    b.ToTable("PurchasePayments");
-                });
-
             modelBuilder.Entity("CompanyApp.Web.Models.Receipt", b =>
                 {
                     b.Property<int>("Id")
@@ -282,17 +203,12 @@ namespace CompanyApp.Web.Migrations
                     b.Property<int?>("OrderId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("PurchaseInvoiceId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("Supplier")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
                     b.HasIndex("OrderId");
-
-                    b.HasIndex("PurchaseInvoiceId");
 
                     b.ToTable("Receipts");
                 });
@@ -356,27 +272,6 @@ namespace CompanyApp.Web.Migrations
                     b.HasIndex("ProductId", "Type", "CreatedAt");
 
                     b.ToTable("StockMoves");
-                });
-
-            modelBuilder.Entity("CompanyApp.Web.Models.Supplier", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Email")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Phone")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Suppliers");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -610,61 +505,13 @@ namespace CompanyApp.Web.Migrations
                     b.Navigation("Order");
                 });
 
-            modelBuilder.Entity("CompanyApp.Web.Models.PurchaseInvoice", b =>
-                {
-                    b.HasOne("CompanyApp.Web.Models.Supplier", "Supplier")
-                        .WithMany()
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Supplier");
-                });
-
-            modelBuilder.Entity("CompanyApp.Web.Models.PurchaseItem", b =>
-                {
-                    b.HasOne("CompanyApp.Web.Models.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CompanyApp.Web.Models.PurchaseInvoice", "PurchaseInvoice")
-                        .WithMany("Items")
-                        .HasForeignKey("PurchaseInvoiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-
-                    b.Navigation("PurchaseInvoice");
-                });
-
-            modelBuilder.Entity("CompanyApp.Web.Models.PurchasePayment", b =>
-                {
-                    b.HasOne("CompanyApp.Web.Models.PurchaseInvoice", "PurchaseInvoice")
-                        .WithMany("Payments")
-                        .HasForeignKey("PurchaseInvoiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("PurchaseInvoice");
-                });
-
             modelBuilder.Entity("CompanyApp.Web.Models.Receipt", b =>
                 {
                     b.HasOne("CompanyApp.Web.Models.Order", "Order")
                         .WithMany()
                         .HasForeignKey("OrderId");
 
-                    b.HasOne("CompanyApp.Web.Models.PurchaseInvoice", "PurchaseInvoice")
-                        .WithMany()
-                        .HasForeignKey("PurchaseInvoiceId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Order");
-
-                    b.Navigation("PurchaseInvoice");
                 });
 
             modelBuilder.Entity("CompanyApp.Web.Models.ReceiptItem", b =>
@@ -749,13 +596,6 @@ namespace CompanyApp.Web.Migrations
                 });
 
             modelBuilder.Entity("CompanyApp.Web.Models.Order", b =>
-                {
-                    b.Navigation("Items");
-
-                    b.Navigation("Payments");
-                });
-
-            modelBuilder.Entity("CompanyApp.Web.Models.PurchaseInvoice", b =>
                 {
                     b.Navigation("Items");
 

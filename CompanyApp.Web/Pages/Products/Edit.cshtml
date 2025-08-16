@@ -1,26 +1,56 @@
 @page
+@using Microsoft.EntityFrameworkCore
 @using CompanyApp.Web.Data
 @using CompanyApp.Web.Models
 @inject AppDbContext Db
+
 @functions{
     public Product? Item { get; set; }
-    public async Task OnGet(int id){ Item = await Db.Products.FindAsync(id); }
+
+    public async Task OnGet(int id){
+        Item = await Db.Products.FirstOrDefaultAsync(x => x.Id == id);
+    }
     public async Task OnPost(int id){
-        Item = await Db.Products.FindAsync(id);
-        if (Item != null){
-            Item.Name = Request.Form["Name"]; Item.Description = Request.Form["Description"]; 
-            Item.Price = decimal.Parse(Request.Form["Price"]); Item.Stock = int.Parse(Request.Form["Stock"]);
-            await Db.SaveChangesAsync(); Response.Redirect("/Products");
+        var p = await Db.Products.FindAsync(id);
+        if (p == null){ Response.StatusCode = 404; return; }
+
+        var name = Request.Form["Name"].ToString();
+        var desc = Request.Form["Description"].ToString();
+        var priceStr = Request.Form["Price"].ToString();
+
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(priceStr)){
+            ModelState.AddModelError(string.Empty, "Заполните Наименование и Цену.");
+            Item = p; return;
         }
+
+        p.Name = name;
+        p.Description = desc;
+        p.Price = decimal.Parse(priceStr);
+
+        await Db.SaveChangesAsync();
+        Response.Redirect("/Products");
     }
 }
-@if (Item == null){ <div class="alert alert-warning">Не найдено</div> } else {
-<h3>Редактирование</h3>
-<form method="post" class="row g-3">
-  <div class="col-12"><label class="form-label">Название</label><input class="form-control" name="Name" value="@Item.Name" required></div>
-  <div class="col-12"><label class="form-label">Описание</label><textarea class="form-control" name="Description">@Item.Description</textarea></div>
-  <div class="col-6"><label class="form-label">Цена</label><input class="form-control" name="Price" value="@Item.Price" required></div>
-  <div class="col-6"><label class="form-label">Остаток</label><input class="form-control" name="Stock" value="@Item.Stock" required></div>
-  <div class="col-12"><button class="btn btn-primary">Сохранить</button> <a href="/Products" class="btn btn-secondary">Отмена</a></div>
+
+@if (Item == null){ <div class="alert alert-warning">Товар не найден</div> } else {
+<h3 class="mb-3">Редактирование товара</h3>
+<form method="post" class="row g-3" novalidate>
+  <div class="col-12 col-md-6">
+    <label class="form-label">Наименование</label>
+    <input class="form-control" name="Name" value="@Item.Name" required />
+  </div>
+  <div class="col-12 col-md-6">
+    <label class="form-label">Цена</label>
+    <input class="form-control" name="Price" type="number" step="0.01" min="0" value="@Item.Price" required />
+  </div>
+  <div class="col-12">
+    <label class="form-label">Описание</label>
+    <textarea class="form-control" name="Description" rows="3">@Item.Description</textarea>
+  </div>
+  <!-- ВАЖНО: поля "Остаток" здесь больше нет -->
+  <div class="col-12">
+    <button class="btn btn-primary">Сохранить</button>
+    <a class="btn btn-outline-secondary" href="/Products">Отмена</a>
+  </div>
 </form>
 }

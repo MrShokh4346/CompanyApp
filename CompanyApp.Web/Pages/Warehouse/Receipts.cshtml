@@ -1,0 +1,32 @@
+@page
+@model CompanyApp.Web.Pages.Warehouse.ReceiptsModel
+@{
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+<h3 class="mb-3">Приходы</h3>
+
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th>№</th>
+        <th>Дата</th>
+        <th>Связанный заказ</th>
+        <th>Поставщик</th>
+        <th>Позиций</th>
+      </tr>
+    </thead>
+    <tbody>
+    @foreach (var r in Model.Items)
+    {
+      <tr>
+        <td><a href="/Purchase/Invoices/Edit?id=@r.Id">@r.Number</a></td>
+        <td>@r.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+        <td>@(r.OrderId.HasValue ? $"#{r.OrderId}" : "—")</td>
+        <td>@(string.IsNullOrEmpty(r.Supplier) ? "—" : r.Supplier)</td>
+        <td>@r.Items.Count</td>
+      </tr>
+    }
+    </tbody>
+  </table>
+</div>

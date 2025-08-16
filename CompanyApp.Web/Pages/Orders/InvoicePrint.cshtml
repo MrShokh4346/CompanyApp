@@ -1,7 +1,7 @@
 @page
 @model CompanyApp.Web.Pages.Orders.InvoiceModel
 @{
-    Layout = null; // чистая печатная страница
+    Layout = null;
     var o = Model.Order!;
 }
 <!doctype html>
@@ -72,31 +72,29 @@
               }
           }
           </tbody>
-          <tfoot>
-            <tr class="fw-bold">
-              <td colspan="4" class="text-end">Итого</td>
-              <td class="text-end">@Model.Total</td>
-            </tr>
-          </tfoot>
         </table>
       </div>
 
-      <div class="row mt-4">
-        <div class="col-6">
-          <div class="small text-muted">Подпись (выдал)</div>
-          <div style="height:48px;border-bottom:1px solid #ccc"></div>
-        </div>
-        <div class="col-6">
-          <div class="small text-muted">Подпись (получил)</div>
-          <div style="height:48px;border-bottom:1px solid #ccc"></div>
-        </div>
+      <div class="row g-3 mt-3">
+        <div class="col-12 col-md-4"><div class="card border-0 bg-light"><div class="card-body py-2">
+          <div class="text-muted small">Итого</div>
+          <div class="fs-5 fw-semibold">@Model.Total</div>
+        </div></div></div>
+        <div class="col-6 col-md-4"><div class="card border-0 bg-light"><div class="card-body py-2">
+          <div class="text-muted small">Оплачено</div>
+          <div class="fs-5 fw-semibold">@Model.Paid</div>
+        </div></div></div>
+        <div class="col-6 col-md-4"><div class="card border-0 bg-light"><div class="card-body py-2">
+          <div class="text-muted small">К оплате</div>
+          <div class="fs-5 fw-semibold text-danger">@Model.Due</div>
+        </div></div></div>
       </div>
+
     </div>
   </div>
 </div>
 
 <script>
-  // Автопечать (Сохранить как PDF)
   window.addEventListener('load', () => {
     window.print();
     setTimeout(() => window.close(), 500);

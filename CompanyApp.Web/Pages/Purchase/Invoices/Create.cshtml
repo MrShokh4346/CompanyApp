@@ -1,0 +1,80 @@
+@page
+@using Microsoft.EntityFrameworkCore
+@using CompanyApp.Web.Data
+@using CompanyApp.Web.Models
+@inject AppDbContext Db
+
+@functions{
+    public List<Supplier> Suppliers { get; set; } = new();
+
+    public async Task OnGet(){
+        Suppliers = await Db.Suppliers.OrderBy(x => x.Name).ToListAsync();
+    }
+
+    public async Task OnPost(){
+        var number = Request.Form["Number"].ToString();
+        var date   = DateTime.TryParse(Request.Form["Date"], out var d) ? d : DateTime.UtcNow;
+
+        int supplierId;
+        if (int.TryParse(Request.Form["SupplierId"], out supplierId) && supplierId>0)
+        {
+            // ok
+        }
+        else
+        {
+            var newName = Request.Form["NewSupplier"].ToString();
+            if (string.IsNullOrWhiteSpace(newName)){
+                ModelState.AddModelError(string.Empty, "Выберите поставщика или введите нового.");
+                await OnGet(); return;
+            }
+            var s = new Supplier { Name = newName };
+            Db.Suppliers.Add(s);
+            await Db.SaveChangesAsync();
+            supplierId = s.Id;
+        }
+
+        if (string.IsNullOrWhiteSpace(number))
+            number = $"PINV-{DateTime.UtcNow:yyyyMMddHHmm}";
+
+        var inv = new PurchaseInvoice { Number = number, Date = date, SupplierId = supplierId };
+        Db.PurchaseInvoices.Add(inv);
+        await Db.SaveChangesAsync();
+        Response.Redirect($"/Purchase/Invoices/Edit?id={inv.Id}");
+    }
+}
+
+<h3 class="mb-3">Новая приходная накладная</h3>
+
+<form method="post" class="row g-3">
+  <div class="col-12 col-md-4">
+    <label class="form-label">Номер</label>
+    <input class="form-control" name="Number" placeholder="PINV-..." />
+  </div>
+  <div class="col-12 col-md-4">
+    <label class="form-label">Дата</label>
+    <input class="form-control" name="Date" type="date" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+  </div>
+
+  <div class="col-12">
+    <label class="form-label">Поставщик</label>
+    <div class="row g-2">
+      <div class="col-md-6">
+        <select class="form-select" name="SupplierId">
+          <option value="">— выбрать из списка —</option>
+          @foreach (var s in Suppliers)
+          {
+              <option value="@s.Id">@s.Name</option>
+          }
+        </select>
+      </div>
+      <div class="col-md-6">
+        <input class="form-control" name="NewSupplier" placeholder="или введите нового поставщика" />
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <button class="btn btn-primary">Создать</button>
+    <a class="btn btn-outline-secondary" href="/Purchase/Invoices">Отмена</a>
+  </div>
+</form>

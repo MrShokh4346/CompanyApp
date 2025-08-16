@@ -1,0 +1,30 @@
+@page
+@model CompanyApp.Web.Pages.Warehouse.StockModel
+@{
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+<h3 class="mb-3">Остатки на складе</h3>
+
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th>Товар</th>
+        <th class="text-end">Приход</th>
+        <th class="text-end">Расход</th>
+        <th class="text-end">Остаток</th>
+      </tr>
+    </thead>
+    <tbody>
+      @foreach (var r in Model.Items)
+      {
+        <tr>
+          <td>@r.Name</td>
+          <td class="text-end">@r.InQty</td>
+          <td class="text-end">@r.OutQty</td>
+          <td class="text-end fw-semibold">@r.OnHand</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

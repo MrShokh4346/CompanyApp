@@ -1,0 +1,112 @@
+@page
+@using Microsoft.EntityFrameworkCore
+@using CompanyApp.Web.Data
+@using CompanyApp.Web.Models
+@inject AppDbContext Db
+
+@functions{
+    public record MonthPoint(string Label, decimal Sum);
+    public record TopRow(string Name, int Qty, decimal Revenue);
+
+    public List<MonthPoint> RevenueByMonth { get; set; } = new();
+    public List<TopRow> TopProducts { get; set; } = new();
+
+    public async Task OnGet(){
+        var from = DateTime.UtcNow.AddMonths(-11); // 12 месяцев включая текущий
+        var items = await Db.OrderItems
+            .Include(i => i.Product)
+            .Include(i => i.Order)
+            .Where(i => i.Order.CreatedAt >= new DateTime(from.Year, from.Month, 1))
+            .ToListAsync();
+
+        // Выручка по месяцам
+        RevenueByMonth = items
+            .GroupBy(i => new { i.Order.CreatedAt.Year, i.Order.CreatedAt.Month })
+            .Select(g => new MonthPoint(
+                $"{g.Key.Month:00}.{g.Key.Year}",
+                g.Sum(x => x.UnitPrice * x.Quantity)
+            ))
+            .OrderBy(x => x.Label)
+            .ToList();
+
+        // ТОП товаров по количеству и выручке
+        TopProducts = items
+            .GroupBy(i => i.Product.Name)
+            .Select(g => new TopRow(
+                g.Key,
+                g.Sum(x => x.Quantity),
+                g.Sum(x => x.UnitPrice * x.Quantity)
+            ))
+            .OrderByDescending(x => x.Qty)
+            .Take(10)
+            .ToList();
+    }
+}
+
+@{
+    var labels = System.Text.Json.JsonSerializer.Serialize(RevenueByMonth.Select(x=>x.Label));
+    var values = System.Text.Json.JsonSerializer.Serialize(RevenueByMonth.Select(x=>x.Sum));
+    var topLabels = System.Text.Json.JsonSerializer.Serialize(TopProducts.Select(x=>x.Name));
+    var topQty = System.Text.Json.JsonSerializer.Serialize(TopProducts.Select(x=>x.Qty));
+}
+
+<h3 class="mb-3">Аналитика</h3>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-7">
+    <div class="card">
+      <div class="card-body">
+        <div class="fw-semibold mb-2">Выручка по месяцам (12 мес.)</div>
+        <canvas id="chartRevenue" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-5">
+    <div class="card">
+      <div class="card-body">
+        <div class="fw-semibold mb-2">ТОП-10 товаров (шт.)</div>
+        <canvas id="chartTop" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-body">
+    <div class="fw-semibold mb-2">ТОП-10 товаров (таблица)</div>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Товар</th><th class="text-end">Продано</th><th class="text-end">Выручка</th></tr></thead>
+        <tbody>
+          @foreach (var r in TopProducts)
+          {
+            <tr>
+              <td>@r.Name</td>
+              <td class="text-end">@r.Qty</td>
+              <td class="text-end">@r.Revenue</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Доход по месяцам
+  const revCtx = document.getElementById('chartRevenue').getContext('2d');
+  new Chart(revCtx, {
+    type: 'line',
+    data: { labels: @Html.Raw(labels), datasets: [{ label: 'Выручка', data: @Html.Raw(values) }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  // Топ по количеству
+  const topCtx = document.getElementById('chartTop').getContext('2d');
+  new Chart(topCtx, {
+    type: 'bar',
+    data: { labels: @Html.Raw(topLabels), datasets: [{ label: 'Штук', data: @Html.Raw(topQty) }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+</script>

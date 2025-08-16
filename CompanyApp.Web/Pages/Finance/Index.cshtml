@@ -1,85 +1,209 @@
 @page
-@using Microsoft.EntityFrameworkCore
-@using CompanyApp.Web.Data
-@inject AppDbContext Db
-@functions {
-  public record DebtorVm(string Name, decimal Outstanding, int Orders);
-  public decimal TotalReceivables { get; set; }
-  public decimal TotalPayables { get; set; }
-  public decimal IncomeMonth { get; set; }
-  public List<DebtorVm> Debtors { get; set; } = new();
-
-  public async Task OnGet(){
-    // ДЕБИТОРЫ (по клиентам)
-    var orders = await Db.Orders
-      .Include(o=>o.Customer)
-      .Include(o=>o.Items)
-      .Include(o=>o.Payments)
-      .ToListAsync();
-
-    var debtByCustomer = orders
-      .Select(o => new {
-        Cust = o.Customer?.FullName ?? "(без клиента)",
-        Due = Math.Max(0, o.Items.Sum(i=>i.Quantity*i.UnitPrice) - (o.Payments?.Sum(p=>p.Amount) ?? 0m))
-      })
-      .GroupBy(x => x.Cust)
-      .Select(g => new DebtorVm(g.Key, g.Sum(x=>x.Due), orders.Count(o => (o.Customer?.FullName ?? "(без клиента)") == g.Key && Math.Max(0, o.Items.Sum(i=>i.Quantity*i.UnitPrice) - (o.Payments?.Sum(p=>p.Amount) ?? 0m)) > 0)))
-      .Where(d => d.Outstanding > 0)
-      .OrderByDescending(d => d.Outstanding)
-      .ToList();
-
-    Debtors = debtByCustomer;
-    TotalReceivables = Debtors.Sum(d=>d.Outstanding);
-
-    // КРЕДИТОРЫ (расходы)
-    var expenses = await Db.Expenses.ToListAsync();
-    TotalPayables = expenses.Sum(e => e.Outstanding);
-
-    // ДОХОДЫ за текущий месяц (сумма поступивших платежей)
-    var now = DateTime.UtcNow;
-    var monthStart = new DateTime(now.Year, now.Month, 1);
-    IncomeMonth = await Db.Payments.Where(p => p.PaidAt >= monthStart).SumAsync(p => p.Amount);
-  }
+@model CompanyApp.Web.Pages.Finance.IndexModel
+@{
+    Layout = "~/Pages/Shared/_Layout.cshtml";
 }
+
 <h3 class="mb-3">Финансы</h3>
 
-<div class="row g-3 mb-3">
-  <div class="col-12 col-md-4"><div class="card shadow-sm"><div class="card-body">
-    <div class="text-muted small">Дебиторская задолженность</div>
-    <div class="fs-4 fw-bold text-danger">@TotalReceivables</div>
-  </div></div></div>
-  <div class="col-6 col-md-4"><div class="card shadow-sm"><div class="card-body">
-    <div class="text-muted small">Кредиторская задолженность</div>
-    <div class="fs-4 fw-bold text-danger">@TotalPayables</div>
-  </div></div></div>
-  <div class="col-6 col-md-4"><div class="card shadow-sm"><div class="card-body">
-    <div class="text-muted small">Доходы (текущий месяц)</div>
-    <div class="fs-4 fw-bold text-success">@IncomeMonth</div>
-  </div></div></div>
-</div>
+<ul class="nav nav-pills mb-3">
+  <li class="nav-item">
+    <a class="nav-link @(Model.View=="income"?"active":"")" href="/Finance?view=income">Доходы</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link @(Model.View=="expenses"?"active":"")" href="/Finance?view=expenses">Расходы</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link @(Model.View=="debtors"?"active":"")" href="/Finance?view=debtors">Дебиторы</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link @(Model.View=="creditors"?"active":"")" href="/Finance?view=creditors">Кредиторы</a>
+  </li>
+</ul>
 
-<div class="card shadow-sm">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h5 class="card-title mb-0">Дебиторы</h5>
-      <a class="btn btn-outline-secondary" href="/Finance/Expenses">Кредиторы (расходы)</a>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm align-middle">
-        <thead><tr><th>Клиент</th><th class="text-end">Задолженность</th><th class="text-end">Заказы с долгом</th></tr></thead>
-        <tbody>
-          @foreach (var d in Debtors){
+@if (Model.View == "income")
+{
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="fw-semibold mb-2">Доходы (заказы)</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
             <tr>
-              <td>@d.Name</td>
-              <td class="text-end fw-bold">@d.Outstanding</td>
-              <td class="text-end">@d.Orders</td>
+              <th>Дата</th>
+              <th>Клиент</th>
+              <th>Накладная №</th>
+              <th class="text-end">Сумма</th>
+              <th class="text-end">Оплачено</th>
+              <th class="text-end">К оплате</th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var r in Model.Income)
+          {
+            <tr>
+              <td>@r.Date.ToLocalTime().ToString("dd.MM.yyyy")</td>
+              <td>@r.Customer</td>
+              <td>
+                @if (!string.IsNullOrWhiteSpace(r.InvoiceNumber))
+                {
+                  <a href="/Orders/Invoice?id=@r.Id&generate=true" target="_blank" rel="noopener">@r.InvoiceNumber</a>
+                }
+                else
+                {
+                  <a href="/Orders/Invoice?id=@r.Id&generate=true" target="_blank" rel="noopener">Открыть</a>
+                }
+              </td>
+              <td class="text-end">@r.Total.ToString("C")</td>
+              <td class="text-end">@r.Paid.ToString("C")</td>
+              <td class="text-end @(r.Due>0?"text-danger fw-semibold":"")">@r.Due.ToString("C")</td>
             </tr>
           }
-          @if(!Debtors.Any()){
-            <tr><td colspan="3" class="text-center text-muted">Нет задолженностей</td></tr>
-          }
-        </tbody>
-      </table>
+          </tbody>
+          <tfoot>
+            <tr class="fw-bold">
+              <td colspan="3" class="text-end">Итого:</td>
+              <td class="text-end">@Model.IncomeTotal.ToString("C")</td>
+              <td class="text-end">@Model.IncomePaid.ToString("C")</td>
+              <td class="text-end">@Model.IncomeDue.ToString("C")</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   </div>
-</div>
+}
+else if (Model.View == "expenses")
+{
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="fw-semibold mb-2">Расходы (приходные накладные)</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Поставщик</th>
+              <th>Накладная №</th>
+              <th class="text-end">Сумма</th>
+              <th class="text-end">Оплачено</th>
+              <th class="text-end">Долг</th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var r in Model.Expenses)
+          {
+            <tr>
+              <td>@r.Date.ToLocalTime().ToString("dd.MM.yyyy")</td>
+              <td>@r.Supplier</td>
+              <td><a href="/Purchase/Invoices/Edit?id=@r.Id">@r.Number</a></td>
+              <td class="text-end">@r.Total.ToString("C")</td>
+              <td class="text-end">@r.Paid.ToString("C")</td>
+              <td class="text-end @(r.Due>0?"text-danger fw-semibold":"")">@r.Due.ToString("C")</td>
+            </tr>
+          }
+          </tbody>
+          <tfoot>
+            <tr class="fw-bold">
+              <td colspan="3" class="text-end">Итого:</td>
+              <td class="text-end">@Model.ExpensesTotal.ToString("C")</td>
+              <td class="text-end">@Model.ExpensesPaid.ToString("C")</td>
+              <td class="text-end">@Model.ExpensesDue.ToString("C")</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+}
+else if (Model.View == "debtors")
+{
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="fw-semibold mb-2">Дебиторы (заказы с задолженностью)</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Клиент</th>
+              <th>Накладная №</th>
+              <th class="text-end">Сумма</th>
+              <th class="text-end">Оплачено</th>
+              <th class="text-end">Долг</th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var r in Model.Debtors)
+          {
+            <tr>
+              <td>@r.Date.ToLocalTime().ToString("dd.MM.yyyy")</td>
+              <td>@r.Customer</td>
+              <td>
+                @if (!string.IsNullOrWhiteSpace(r.InvoiceNumber))
+                {
+                  <a href="/Orders/Invoice?id=@r.Id&generate=true" target="_blank" rel="noopener">@r.InvoiceNumber</a>
+                }
+                else
+                {
+                  <a href="/Orders/Invoice?id=@r.Id&generate=true" target="_blank" rel="noopener">Открыть</a>
+                }
+              </td>
+              <td class="text-end">@r.Total.ToString("C")</td>
+              <td class="text-end">@r.Paid.ToString("C")</td>
+              <td class="text-end text-danger fw-semibold">@r.Due.ToString("C")</td>
+            </tr>
+          }
+          </tbody>
+          <tfoot>
+            <tr class="fw-bold">
+              <td colspan="5" class="text-end">Всего задолженность:</td>
+              <td class="text-end text-danger">@Model.DebtorsDue.ToString("C")</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+}
+else if (Model.View == "creditors")
+{
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="fw-semibold mb-2">Кредиторы (приходные накладные с задолженностью)</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Поставщик</th>
+              <th>Накладная №</th>
+              <th class="text-end">Сумма</th>
+              <th class="text-end">Оплачено</th>
+              <th class="text-end">Долг</th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach (var r in Model.Creditors)
+          {
+            <tr>
+              <td>@r.Date.ToLocalTime().ToString("dd.MM.yyyy")</td>
+              <td>@r.Supplier</td>
+              <td><a href="/Purchase/Invoices/Edit?id=@r.Id">@r.Number</a></td>
+              <td class="text-end">@r.Total.ToString("C")</td>
+              <td class="text-end">@r.Paid.ToString("C")</td>
+              <td class="text-end text-danger fw-semibold">@r.Due.ToString("C")</td>
+            </tr>
+          }
+          </tbody>
+          <tfoot>
+            <tr class="fw-bold">
+              <td colspan="5" class="text-end">Всего задолженность:</td>
+              <td class="text-end text-danger">@Model.CreditorsDue.ToString("C")</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+}

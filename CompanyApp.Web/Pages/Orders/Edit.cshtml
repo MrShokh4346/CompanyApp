@@ -2,8 +2,23 @@
 @using Microsoft.EntityFrameworkCore
 @using CompanyApp.Web.Data
 @using CompanyApp.Web.Models
+@using System.Globalization
 @inject AppDbContext Db
 @functions{
+    static bool TryGetInt(IFormCollection form, string key, out int value)
+    {
+        var s = form[key].ToString();
+        return int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+    }
+
+    static bool TryGetDec(IFormCollection form, string key, out decimal value)
+    {
+        var s = form[key].ToString();
+        // пробуем с текущей культурой и инвариантной
+        if (decimal.TryParse(s, NumberStyles.Number, CultureInfo.CurrentCulture, out value)) return true;
+        return decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
+    }
+
     public Order? Item { get; set; }
     public List<Customer> Customers { get; set; } = new();
     public decimal Total => Item?.Items.Sum(i=>i.Quantity*i.UnitPrice) ?? 0m;
@@ -24,9 +39,14 @@
     }
 
     public async Task OnPostAddPayment(int id){
-        var amount = decimal.Parse(Request.Form["Amount"]);
-        var method = Request.Form["Method"].ToString();
-        var note = Request.Form["Note"].ToString();
+        if (!TryGetDec(Request.Form, "Amount", out var amount))
+        {
+            ModelState.AddModelError(string.Empty, "Введите корректную сумму оплаты.");
+            await OnGet(id); return;
+        }
+        var method = Request.Form["Method"].ToString() ?? "Банк";
+        var note   = Request.Form["Note"].ToString();
+
         Db.Payments.Add(new Payment{ OrderId = id, Amount = amount, Method = method, Note = note, PaidAt = DateTime.UtcNow });
         await Db.SaveChangesAsync();
         Response.Redirect($"/Orders/Edit?id={id}");
@@ -47,11 +67,28 @@
         Response.Redirect($"/Orders/Edit?id={id}");
     }
 
-    public async Task OnPostAddCustomer(int id){
-        var c = new Customer{
-            FullName = Request.Form["FullName"],
-            Email = Request.Form["Email"],
-            Phone = Request.Form["Phone"]
+    public async Task OnPostAddCustomer(int id)
+    {
+        // Безопасно читаем строки как string (а не StringValues)
+        var fullName = Request.Form["FullName"].ToString().Trim();
+        var email    = Request.Form["Email"].ToString().Trim();
+        var phone    = Request.Form["Phone"].ToString().Trim();
+
+        if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(phone))
+        {
+           if (string.IsNullOrWhiteSpace(fullName)){ModelState.AddModelError(string.Empty, "Введите имя клиента.");}
+           if (string.IsNullOrWhiteSpace(email)){ModelState.AddModelError(string.Empty, "Введите почту клиента.");}
+           if (string.IsNullOrWhiteSpace(phone)){ModelState.AddModelError(string.Empty, "Введите номер телефона клиента.");}
+            
+            await OnGet(id);  // заново загрузить страницу с ошибкой
+            return;
+        }
+
+        var c = new Customer
+        {
+            FullName = fullName,                          // гарантированно не null
+            Email = string.IsNullOrWhiteSpace(email) ? null : email,
+            Phone = string.IsNullOrWhiteSpace(phone) ? null : phone
         };
         Db.Customers.Add(c);
         await Db.SaveChangesAsync();

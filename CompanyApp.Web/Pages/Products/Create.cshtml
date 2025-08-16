@@ -2,26 +2,44 @@
 @using CompanyApp.Web.Data
 @using CompanyApp.Web.Models
 @inject AppDbContext Db
+
 @functions{
-    public string? Error { get; set; }
     public async Task OnPost(){
-        try {
-            var p = new Product{
-                Name = Request.Form["Name"],
-                Description = Request.Form["Description"],
-                Price = decimal.Parse(Request.Form["Price"]),
-                Stock = int.Parse(Request.Form["Stock"]) };
-            Db.Products.Add(p); await Db.SaveChangesAsync();
-            Response.Redirect("/Products");
-        } catch(Exception ex){ Error = ex.Message; }
+        var name = Request.Form["Name"].ToString();
+        var desc = Request.Form["Description"].ToString();
+        var priceStr = Request.Form["Price"].ToString();
+
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(priceStr))
+        {
+            ModelState.AddModelError(string.Empty, "Заполните Наименование и Цену.");
+            return;
+        }
+
+        var price = decimal.Parse(priceStr);
+        Db.Products.Add(new Product { Name = name, Description = desc, Price = price });
+        await Db.SaveChangesAsync();
+        Response.Redirect("/Products");
     }
 }
-<h3>Новый товар</h3>
-@if (!string.IsNullOrEmpty(Error)) { <div class="alert alert-danger">@Error</div> }
-<form method="post" class="row g-3">
-  <div class="col-12"><label class="form-label">Название</label><input class="form-control" name="Name" required></div>
-  <div class="col-12"><label class="form-label">Описание</label><textarea class="form-control" name="Description"></textarea></div>
-  <div class="col-6"><label class="form-label">Цена</label><input class="form-control" name="Price" value="0" required></div>
-  <div class="col-6"><label class="form-label">Остаток</label><input class="form-control" name="Stock" value="0" required></div>
-  <div class="col-12"><button class="btn btn-success">Сохранить</button> <a href="/Products" class="btn btn-secondary">Отмена</a></div>
+
+<h3 class="mb-3">Новый товар</h3>
+
+<form method="post" class="row g-3" novalidate>
+  <div class="col-12 col-md-6">
+    <label class="form-label">Наименование</label>
+    <input class="form-control" name="Name" required />
+  </div>
+  <div class="col-12 col-md-6">
+    <label class="form-label">Цена</label>
+    <input class="form-control" name="Price" type="number" step="0.01" min="0" required />
+  </div>
+  <div class="col-12">
+    <label class="form-label">Описание</label>
+    <textarea class="form-control" name="Description" rows="3"></textarea>
+  </div>
+  <!-- ВАЖНО: поля "Остаток" здесь больше нет -->
+  <div class="col-12">
+    <button class="btn btn-primary">Сохранить</button>
+    <a class="btn btn-outline-secondary" href="/Products">Отмена</a>
+  </div>
 </form>

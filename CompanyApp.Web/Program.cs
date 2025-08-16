@@ -6,8 +6,20 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using CompanyApp.Web.Data;
+using System.Globalization;
+using CompanyApp.Web.Pdf;      // ← ЭТО ДОБАВИТЬ
+using QuestPDF.Fluent;     
+using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+QuestPDF.Settings.License = LicenseType.Community;
+
+var culture = new CultureInfo("ru-RU");
+culture.NumberFormat.CurrencySymbol = "сум";      // будет: 12 345,67 сум
+culture.NumberFormat.CurrencyDecimalDigits = 2;    // если хочешь без копеек — поставь 0
+CultureInfo.DefaultThreadCurrentCulture = culture;
+CultureInfo.DefaultThreadCurrentUICulture = culture;
 
 // DB
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -92,6 +104,25 @@ app.MapWhen(ctx => ctx.Request.Path == "/pwa/service-worker.js", sw =>
 
 app.MapControllers();
 app.MapRazorPages();
+
+app.MapGet("/orders/{id:int}/invoice.pdf", async (int id, AppDbContext db) =>
+{
+    var order = await db.Orders
+        .Include(o => o.Customer)
+        .Include(o => o.Items).ThenInclude(i => i.Product)
+        .Include(o => o.Payments)
+        .FirstOrDefaultAsync(o => o.Id == id);
+
+    if (order == null) return Results.NotFound();
+
+    var fileName = $"Invoice-{(order.InvoiceNumber ?? id.ToString())}.pdf";
+
+    var doc = new InvoiceDocument(order);
+    var pdfBytes = doc.GeneratePdf(); // QuestPDF
+
+    // attachment -> принудительное скачивание на телефонах
+    return Results.File(pdfBytes, "application/pdf", fileName);
+}).RequireAuthorization();
 
 // Seed admin user
 using (var scope = app.Services.CreateScope())

@@ -1,0 +1,255 @@
+@page
+@using Microsoft.EntityFrameworkCore
+@using CompanyApp.Web.Data
+@using CompanyApp.Web.Models
+@inject AppDbContext Db
+
+@functions{
+    public PurchaseInvoice? Inv { get; set; }
+    public List<Product> Products { get; set; } = new();
+    public decimal Total => Inv?.Items.Sum(i => i.UnitCost * i.Quantity) ?? 0m;
+    public decimal Paid => Inv?.Payments.Sum(p => p.Amount) ?? 0m;
+    public decimal Due => Math.Max(0, Total - Paid);
+
+    private async Task Load(int id){
+        Inv = await Db.PurchaseInvoices
+            .Include(x => x.Supplier)
+            .Include(x => x.Items).ThenInclude(i => i.Product)
+            .Include(x => x.Payments)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        Products = await Db.Products.OrderBy(p => p.Name).ToListAsync();
+    }
+
+    public async Task OnGet(int id){ await Load(id); }
+
+    public async Task OnPostAddItem(int id){
+        var pid = int.Parse(Request.Form["ProductId"]);
+        var qty = int.Parse(Request.Form["Quantity"]);
+        var cost = decimal.Parse(Request.Form["UnitCost"]);
+        Db.PurchaseItems.Add(new PurchaseItem {
+            PurchaseInvoiceId = id, ProductId = pid, Quantity = qty, UnitCost = cost
+        });
+        await Db.SaveChangesAsync();
+        Response.Redirect($"/Purchase/Invoices/Edit?id={id}");
+    }
+
+    public async Task OnPostDeleteItem(int id, int itemId){
+        var it = await Db.PurchaseItems.FindAsync(itemId);
+        if (it != null) { Db.PurchaseItems.Remove(it); await Db.SaveChangesAsync(); }
+        Response.Redirect($"/Purchase/Invoices/Edit?id={id}");
+    }
+
+    public async Task OnPostAddPayment(int id){
+        var amount = decimal.Parse(Request.Form["Amount"]);
+        var method = Request.Form["Method"].ToString();
+        var note   = Request.Form["Note"].ToString();
+        Db.PurchasePayments.Add(new PurchasePayment {
+            PurchaseInvoiceId = id, Amount = amount, Method = method, Note = note, PaidAt = DateTime.UtcNow
+        });
+        await Db.SaveChangesAsync();
+        Response.Redirect($"/Purchase/Invoices/Edit?id={id}");
+    }
+
+    // Провести приход на склад
+    public async Task OnPostPostToStock(int id){
+        var inv = await Db.PurchaseInvoices
+            .Include(x => x.Items)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (inv == null) { Response.StatusCode = 404; return; }
+
+        // уже проводили?
+        var exists = await Db.Receipts.FirstOrDefaultAsync(r => r.PurchaseInvoiceId == inv.Id);
+        if (exists == null)
+        {
+            var r = new Receipt {
+                PurchaseInvoiceId = inv.Id,
+                Number = $"PRC-{DateTime.UtcNow:yyyyMMddHHmm}-{inv.Id}",
+                Date = DateTime.UtcNow,
+                Supplier = inv.Supplier?.Name
+            };
+            foreach (var it in inv.Items)
+                r.Items.Add(new ReceiptItem { ProductId = it.ProductId, Quantity = it.Quantity, UnitPrice = it.UnitCost });
+            Db.Receipts.Add(r);
+            await Db.SaveChangesAsync();
+
+            // движения склада
+            foreach (var it in r.Items)
+                Db.StockMoves.Add(new StockMove {
+                    ProductId = it.ProductId,
+                    Quantity = it.Quantity,
+                    UnitPrice = it.UnitPrice,
+                    Type = StockMoveType.In,
+                    RefReceiptId = r.Id
+                });
+
+            inv.PostedToStockAt = DateTime.UtcNow;
+            await Db.SaveChangesAsync();
+        }
+        Response.Redirect($"/Purchase/Invoices/Edit?id={id}");
+    }
+}
+
+@if (Inv == null){ <div class="alert alert-warning">Накладная не найдена</div> }
+else {
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Приходная накладная @Inv.Number</h3>
+  <div class="btn-group">
+    <a class="btn btn-outline-secondary" href="/Purchase/Invoices">Назад</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <div>
+            <div class="text-muted small">Поставщик</div>
+            <div class="fw-semibold">@Inv.Supplier.Name</div>
+            <div class="text-muted small">@Inv.Date.ToLocalTime().ToString("dd.MM.yyyy")</div>
+          </div>
+          <div class="text-end">
+            <div class="text-muted small">Статус</div>
+            <div class="fw-semibold">@(Inv.PostedToStockAt!=null ? $"Проведена {Inv.PostedToStockAt.Value.ToLocalTime():dd.MM.yyyy}" : "Черновик")</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Позиции</h5>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr><th>Товар</th><th class="text-end">Цена</th><th class="text-end">Кол-во</th><th class="text-end">Сумма</th><th></th></tr></thead>
+            <tbody>
+              @foreach (var it in Inv.Items)
+              {
+                <tr>
+                  <td>@it.Product.Name</td>
+                  <td class="text-end">@it.UnitCost</td>
+                  <td class="text-end">@it.Quantity</td>
+                  <td class="text-end">@(@it.UnitCost * @it.Quantity)</td>
+                  <td class="text-end">
+                    <form method="post" asp-page-handler="DeleteItem" class="d-inline">
+                      <input type="hidden" name="id" value="@Inv.Id" />
+                      <input type="hidden" name="itemId" value="@it.Id" />
+                      <button class="btn btn-sm btn-outline-danger" @(Inv.PostedToStockAt!=null ? "disabled" : "")>Удалить</button>
+                    </form>
+                  </td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr class="fw-semibold">
+                <td colspan="3" class="text-end">Итого</td>
+                <td class="text-end">@Total</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        @* Добавить позицию *@
+        @if (Inv.PostedToStockAt == null)
+        {
+          <form method="post" asp-page-handler="AddItem" class="row g-2 align-items-end">
+            <input type="hidden" name="id" value="@Inv.Id" />
+            <div class="col-12 col-md-6">
+              <label class="form-label">Товар</label>
+              <select class="form-select" name="ProductId" required>
+                <option value="">— выбрать —</option>
+                @foreach (var p in Products)
+                {
+                    <option value="@p.Id">@p.Name</option>
+                }
+              </select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label">Кол-во</label>
+              <input class="form-control" type="number" name="Quantity" min="1" required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label">Цена</label>
+              <input class="form-control" type="number" name="UnitCost" step="0.01" min="0" required />
+            </div>
+            <div class="col-12">
+              <button class="btn btn-primary">Добавить позицию</button>
+            </div>
+          </form>
+        }
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Оплаты поставщику</h5>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Дата</th><th>Сумма</th><th>Метод</th><th>Комментарий</th></tr></thead>
+            <tbody>
+              @foreach (var p in Inv.Payments.OrderByDescending(x=>x.PaidAt))
+              {
+                <tr>
+                  <td>@p.PaidAt.ToLocalTime()</td>
+                  <td>@p.Amount</td>
+                  <td>@p.Method</td>
+                  <td>@p.Note</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <form method="post" asp-page-handler="AddPayment" class="row g-2">
+          <input type="hidden" name="id" value="@Inv.Id" />
+          <div class="col-12 col-md-3">
+            <input class="form-control" name="Amount" placeholder="Сумма" required />
+          </div>
+          <div class="col-6 col-md-3">
+            <select class="form-select" name="Method" required>
+              <option value="">— способ оплаты —</option>
+              <option>Банк</option>
+              <option>Наличные</option>
+              <option>Карта</option>
+              <option>QR</option>
+              <option>Другое</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-4">
+            <input class="form-control" name="Note" placeholder="Комментарий" />
+          </div>
+          <div class="col-12 col-md-2">
+            <button class="btn btn-success w-100">Добавить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small">Финансы</div>
+        <div class="d-flex justify-content-between"><span>Итого:</span><span class="fw-semibold">@Total</span></div>
+        <div class="d-flex justify-content-between"><span>Оплачено:</span><span class="fw-semibold">@Paid</span></div>
+        <div class="d-flex justify-content-between"><span>Кредиторка (осталось оплатить):</span><span class="fw-bold text-danger">@Due</span></div>
+        <hr />
+        @if (Inv.PostedToStockAt == null)
+        {
+          <form method="post" asp-page-handler="PostToStock">
+            <input type="hidden" name="id" value="@Inv.Id" />
+            <button class="btn btn-primary w-100">Провести приход на склад</button>
+          </form>
+        }
+        else
+        {
+          <div class="alert alert-success mb-0">Приход на склад проведён @Inv.PostedToStockAt.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm").</div>
+        }
+      </div>
+    </div>
+  </div>
+</div>
+}
